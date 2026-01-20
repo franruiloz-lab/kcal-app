@@ -1,5 +1,5 @@
 // Groq API (llamada directa desde navegador)
-const GROQ_API_KEY = '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';
+const GROQ_API_KEY = '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';
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 // OpenFoodFacts API - Base de datos mundial de alimentos (gratuita)
