@@ -2,47 +2,48 @@
 const GROQ_API_KEY = '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';
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-// URL de la base de datos BEDCA (cambiar a Vercel cuando se despliegue)
-const BEDCA_URL = './bedca.json';
+// OpenFoodFacts API - Base de datos mundial de alimentos (gratuita)
+const OFF_API_URL = 'https://world.openfoodfacts.org/cgi/search.pl';
 
-// Cache de la base de datos
-let bedcaDB = null;
-
-// Cargar base de datos BEDCA
-async function loadBEDCA() {
-    if (bedcaDB) return bedcaDB;
+// Buscar alimento en OpenFoodFacts
+async function searchOpenFoodFacts(searchTerm) {
     try {
-        const response = await fetch(BEDCA_URL);
-        bedcaDB = await response.json();
-        console.log(`BEDCA cargada: ${bedcaDB.foods.length} alimentos`);
-        return bedcaDB;
+        const params = new URLSearchParams({
+            search_terms: searchTerm,
+            search_simple: 1,
+            action: 'process',
+            json: 1,
+            page_size: 10,
+            fields: 'product_name,brands,nutriments,serving_size'
+        });
+
+        const response = await fetch(`${OFF_API_URL}?${params}`);
+        if (!response.ok) return null;
+
+        const data = await response.json();
+        if (!data.products || data.products.length === 0) return null;
+
+        // Buscar el mejor resultado (preferir con datos nutricionales completos)
+        const product = data.products.find(p =>
+            p.nutriments &&
+            p.nutriments['energy-kcal_100g'] !== undefined
+        ) || data.products[0];
+
+        if (!product || !product.nutriments) return null;
+
+        const n = product.nutriments;
+        return {
+            name: product.product_name || searchTerm,
+            brand: product.brands || 'OpenFoodFacts',
+            kcal: n['energy-kcal_100g'] || n['energy-kcal'] || 0,
+            carbs: n['carbohydrates_100g'] || 0,
+            protein: n['proteins_100g'] || 0,
+            fat: n['fat_100g'] || 0
+        };
     } catch (error) {
-        console.error('Error cargando BEDCA:', error);
+        console.error('Error buscando en OpenFoodFacts:', error);
         return null;
     }
-}
-
-// Buscar alimento en BEDCA por nombre/keyword
-function findInBEDCA(searchTerm) {
-    if (!bedcaDB) return null;
-    const term = searchTerm.toLowerCase().trim();
-
-    // Buscar coincidencia exacta primero
-    let found = bedcaDB.foods.find(food =>
-        food.name.toLowerCase() === term ||
-        food.keywords.some(kw => kw.toLowerCase() === term)
-    );
-
-    // Si no hay exacta, buscar parcial
-    if (!found) {
-        found = bedcaDB.foods.find(food =>
-            food.name.toLowerCase().includes(term) ||
-            term.includes(food.name.toLowerCase()) ||
-            food.keywords.some(kw => term.includes(kw.toLowerCase()) || kw.toLowerCase().includes(term))
-        );
-    }
-
-    return found;
 }
 
 // Estado de la Aplicación
@@ -191,13 +192,11 @@ const calendarSummary = document.getElementById('calendarSummary');
 
 
 async function init() {
-    await loadBEDCA(); // Cargar base de datos BEDCA
     migrateOldData(); // Migrar datos antiguos si existen
     updateDateDisplay();
     updateGoalsDisplay();
     updateUI();
     setupEventListeners();
-    // addLog('CalorieTrack v4 - Búsqueda inteligente con IA', 'info');
 }
 
 function updateDateDisplay() {
@@ -414,7 +413,7 @@ function updateCalendarSummary(date) {
     `;
 }
 
-// Lógica Búsqueda Inteligente - IA con Groq
+// Lógica Búsqueda Inteligente - IA con Groq + OpenFoodFacts
 async function processSmartInput() {
     const rawText = smartInput.value.trim();
     if (!rawText) return;
@@ -442,16 +441,16 @@ async function processSmartInput() {
 INSTRUCCIONES:
 1. Si el usuario indica gramos/ml/cantidad específica, USA EXACTAMENTE esa cantidad
 2. Si NO especifica cantidad, estima una porción típica
-3. Devuelve SOLO los nombres de alimentos simples/genéricos (ej: "arroz", "pollo", "huevo")
+3. Devuelve los nombres de alimentos en español e inglés para mejor búsqueda
 
 Ejemplos:
-- "200g de arroz con pollo" → arroz 200g, pollo 150g (estimado)
-- "2 huevos fritos" → huevo 120g (2x60g)
-- "tostada con aceite" → tostada 30g, aceite 10g
-- "un plátano" → plátano 120g
+- "200g de arroz con pollo" → arroz/rice 200g, pollo/chicken 150g
+- "2 huevos fritos" → huevo/egg 120g (2x60g)
+- "tostada con aceite" → pan/bread 30g, aceite de oliva/olive oil 10g
+- "un plátano" → plátano/banana 120g
 
 Responde SOLO con este JSON (sin texto adicional):
-{"items": [{"food": "nombre simple del alimento", "grams": número}]}`
+{"items": [{"food_es": "nombre en español", "food_en": "name in english", "grams": número}]}`
                 }],
                 temperature: 0.1
             })
@@ -477,25 +476,33 @@ Responde SOLO con este JSON (sin texto adicional):
             throw new Error('No se detectaron alimentos');
         }
 
-        // PASO 2: Buscar cada alimento en BEDCA y calcular nutrientes
+        // PASO 2: Buscar cada alimento en OpenFoodFacts y calcular nutrientes
         const processedFoods = [];
         const totals = { kcal: 0, carbs: 0, protein: 0, fat: 0 };
 
+        smartBtn.textContent = 'Buscando datos...';
+
         for (const item of parsed.items) {
-            const bedcaFood = findInBEDCA(item.food);
             const grams = item.grams || 100;
 
-            if (bedcaFood) {
-                // Encontrado en BEDCA - calcular proporcionalmente
+            // Buscar primero en español, luego en inglés
+            let offFood = await searchOpenFoodFacts(item.food_es || item.food);
+            if (!offFood) {
+                offFood = await searchOpenFoodFacts(item.food_en || item.food);
+            }
+
+            if (offFood && offFood.kcal > 0) {
+                // Encontrado en OpenFoodFacts - calcular proporcionalmente
                 const ratio = grams / 100;
                 const food = {
-                    name: bedcaFood.name,
+                    name: item.food_es || item.food,
                     grams: grams,
-                    kcal: Math.round(bedcaFood.kcal * ratio),
-                    carbs: Math.round(bedcaFood.carbs * ratio * 10) / 10,
-                    protein: Math.round(bedcaFood.protein * ratio * 10) / 10,
-                    fat: Math.round(bedcaFood.fat * ratio * 10) / 10,
-                    source: 'BEDCA'
+                    kcal: Math.round(offFood.kcal * ratio),
+                    carbs: Math.round(offFood.carbs * ratio * 10) / 10,
+                    protein: Math.round(offFood.protein * ratio * 10) / 10,
+                    fat: Math.round(offFood.fat * ratio * 10) / 10,
+                    source: 'OpenFoodFacts',
+                    brand: offFood.brand
                 };
                 processedFoods.push(food);
                 totals.kcal += food.kcal;
@@ -503,8 +510,7 @@ Responde SOLO con este JSON (sin texto adicional):
                 totals.protein += food.protein;
                 totals.fat += food.fat;
             } else {
-                // No encontrado en BEDCA - usar estimación genérica
-                // Pedir a la IA que estime este alimento específico
+                // No encontrado en OpenFoodFacts - pedir estimación a la IA
                 const estimateResponse = await fetch(GROQ_API_URL, {
                     method: 'POST',
                     headers: {
@@ -515,7 +521,7 @@ Responde SOLO con este JSON (sin texto adicional):
                         model: 'llama-3.3-70b-versatile',
                         messages: [{
                             role: 'user',
-                            content: `Dame los valores nutricionales de "${item.food}" por 100g.
+                            content: `Dame los valores nutricionales TÍPICOS de "${item.food_es || item.food}" por 100g.
 Responde SOLO con JSON: {"kcal": número, "carbs": número, "protein": número, "fat": número}`
                         }],
                         temperature: 0.1
@@ -533,13 +539,14 @@ Responde SOLO con JSON: {"kcal": número, "carbs": número, "protein": número, 
 
                 const ratio = grams / 100;
                 const food = {
-                    name: item.food,
+                    name: item.food_es || item.food,
                     grams: grams,
                     kcal: Math.round(estimated.kcal * ratio),
                     carbs: Math.round(estimated.carbs * ratio * 10) / 10,
                     protein: Math.round(estimated.protein * ratio * 10) / 10,
                     fat: Math.round(estimated.fat * ratio * 10) / 10,
-                    source: 'IA'
+                    source: 'IA',
+                    brand: 'Estimado IA'
                 };
                 processedFoods.push(food);
                 totals.kcal += food.kcal;
@@ -551,6 +558,7 @@ Responde SOLO con JSON: {"kcal": número, "carbs": número, "protein": número, 
 
         // Construir el resumen
         const components = processedFoods.map(f => `${f.name} (${f.grams}g)`);
+        const sources = [...new Set(processedFoods.map(f => f.source))].join(' + ');
 
         // Añadir a la categoría seleccionada del día
         const dayData = getFoodsForDate(state.selectedDate);
@@ -563,8 +571,8 @@ Responde SOLO con JSON: {"kcal": número, "carbs": número, "protein": número, 
             carbs: totals.carbs,
             protein: totals.protein,
             fat: totals.fat,
-            brand: processedFoods.every(f => f.source === 'BEDCA') ? 'BEDCA' : 'BEDCA + IA',
-            quantity: 1,
+            brand: sources,
+            quantity: processedFoods.reduce((sum, f) => sum + f.grams, 0),
             id: Date.now()
         });
         saveFoodsForDate(state.selectedDate, dayData);
@@ -573,7 +581,8 @@ Responde SOLO con JSON: {"kcal": número, "carbs": número, "protein": número, 
         smartPreview.innerHTML = `
             <strong>Añadido:</strong> ${components.join(' + ')}<br>
             <strong>Total: ${Math.round(totals.kcal)} kcal</strong><br>
-            <small>Carbs: ${Math.round(totals.carbs)}g | Prot: ${Math.round(totals.protein)}g | Grasa: ${Math.round(totals.fat)}g</small>
+            <small>Carbs: ${Math.round(totals.carbs)}g | Prot: ${Math.round(totals.protein)}g | Grasa: ${Math.round(totals.fat)}g</small><br>
+            <small style="color:#888">Fuente: ${sources}</small>
         `;
         smartPreview.classList.remove('hidden');
 
@@ -584,8 +593,7 @@ Responde SOLO con JSON: {"kcal": número, "carbs": número, "protein": número, 
         }, 3000);
 
     } catch (error) {
-        // addLog(`ERROR: ${error.message}`, 'error');
-        alert(`Error al procesar: ${error.message}\n\nIntenta de nuevo o usa la búsqueda manual.`);
+        alert(`Error al procesar: ${error.message}\n\nIntenta de nuevo.`);
     } finally {
         smartBtn.textContent = 'Estimar y Añadir';
         smartBtn.disabled = false;
