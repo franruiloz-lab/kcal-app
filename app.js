@@ -476,84 +476,72 @@ Responde SOLO con este JSON (sin texto adicional):
             throw new Error('No se detectaron alimentos');
         }
 
-        // PASO 2: Buscar cada alimento en OpenFoodFacts y calcular nutrientes
+        // PASO 2: Pedir valores nutricionales a la IA (más precisa para alimentos naturales)
         const processedFoods = [];
         const totals = { kcal: 0, carbs: 0, protein: 0, fat: 0 };
 
-        smartBtn.textContent = 'Buscando datos...';
+        smartBtn.textContent = 'Calculando nutrientes...';
 
-        for (const item of parsed.items) {
+        // Pedir todos los valores nutricionales en una sola llamada a la IA
+        const foodNames = parsed.items.map(i => i.food_es || i.food).join(', ');
+        const nutrientResponse = await fetch(GROQ_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${GROQ_API_KEY}`
+            },
+            body: JSON.stringify({
+                model: 'llama-3.3-70b-versatile',
+                messages: [{
+                    role: 'user',
+                    content: `Dame los valores nutricionales por 100g de estos alimentos: ${foodNames}
+
+IMPORTANTE: Usa datos de tablas nutricionales oficiales (BEDCA, USDA).
+Valores de referencia típicos:
+- Huevo: 155 kcal, 1.1g carbs, 13g proteína, 11g grasa
+- Arroz cocido: 130 kcal, 28g carbs, 2.7g proteína, 0.3g grasa
+- Pollo: 165 kcal, 0g carbs, 31g proteína, 3.6g grasa
+- Pan: 265 kcal, 49g carbs, 9g proteína, 3.2g grasa
+- Aceite de oliva: 884 kcal, 0g carbs, 0g proteína, 100g grasa
+
+Responde SOLO con este JSON (sin texto adicional):
+{"foods": [{"name": "nombre", "kcal": número, "carbs": número, "protein": número, "fat": número}]}`
+                }],
+                temperature: 0.1
+            })
+        });
+
+        let nutrientData = { foods: [] };
+        if (nutrientResponse.ok) {
+            const respData = await nutrientResponse.json();
+            const jsonMatch = respData.choices[0].message.content.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                try { nutrientData = JSON.parse(jsonMatch[0]); } catch(e) {}
+            }
+        }
+
+        for (let i = 0; i < parsed.items.length; i++) {
+            const item = parsed.items[i];
             const grams = item.grams || 100;
+            const ratio = grams / 100;
 
-            // Buscar primero en español, luego en inglés
-            let offFood = await searchOpenFoodFacts(item.food_es || item.food);
-            if (!offFood) {
-                offFood = await searchOpenFoodFacts(item.food_en || item.food);
-            }
+            // Buscar en la respuesta de la IA o usar valores por defecto
+            const nutrient = nutrientData.foods[i] || { kcal: 100, carbs: 15, protein: 5, fat: 3 };
 
-            if (offFood && offFood.kcal > 0) {
-                // Encontrado en OpenFoodFacts - calcular proporcionalmente
-                const ratio = grams / 100;
-                const food = {
-                    name: item.food_es || item.food,
-                    grams: grams,
-                    kcal: Math.round(offFood.kcal * ratio),
-                    carbs: Math.round(offFood.carbs * ratio * 10) / 10,
-                    protein: Math.round(offFood.protein * ratio * 10) / 10,
-                    fat: Math.round(offFood.fat * ratio * 10) / 10,
-                    source: 'OpenFoodFacts',
-                    brand: offFood.brand
-                };
-                processedFoods.push(food);
-                totals.kcal += food.kcal;
-                totals.carbs += food.carbs;
-                totals.protein += food.protein;
-                totals.fat += food.fat;
-            } else {
-                // No encontrado en OpenFoodFacts - pedir estimación a la IA
-                const estimateResponse = await fetch(GROQ_API_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${GROQ_API_KEY}`
-                    },
-                    body: JSON.stringify({
-                        model: 'llama-3.3-70b-versatile',
-                        messages: [{
-                            role: 'user',
-                            content: `Dame los valores nutricionales TÍPICOS de "${item.food_es || item.food}" por 100g.
-Responde SOLO con JSON: {"kcal": número, "carbs": número, "protein": número, "fat": número}`
-                        }],
-                        temperature: 0.1
-                    })
-                });
-
-                let estimated = { kcal: 100, carbs: 15, protein: 5, fat: 3 }; // fallback
-                if (estimateResponse.ok) {
-                    const estData = await estimateResponse.json();
-                    const estMatch = estData.choices[0].message.content.match(/\{[\s\S]*\}/);
-                    if (estMatch) {
-                        try { estimated = JSON.parse(estMatch[0]); } catch(e) {}
-                    }
-                }
-
-                const ratio = grams / 100;
-                const food = {
-                    name: item.food_es || item.food,
-                    grams: grams,
-                    kcal: Math.round(estimated.kcal * ratio),
-                    carbs: Math.round(estimated.carbs * ratio * 10) / 10,
-                    protein: Math.round(estimated.protein * ratio * 10) / 10,
-                    fat: Math.round(estimated.fat * ratio * 10) / 10,
-                    source: 'IA',
-                    brand: 'Estimado IA'
-                };
-                processedFoods.push(food);
-                totals.kcal += food.kcal;
-                totals.carbs += food.carbs;
-                totals.protein += food.protein;
-                totals.fat += food.fat;
-            }
+            const food = {
+                name: item.food_es || item.food,
+                grams: grams,
+                kcal: Math.round(nutrient.kcal * ratio),
+                carbs: Math.round(nutrient.carbs * ratio * 10) / 10,
+                protein: Math.round(nutrient.protein * ratio * 10) / 10,
+                fat: Math.round(nutrient.fat * ratio * 10) / 10,
+                source: 'IA'
+            };
+            processedFoods.push(food);
+            totals.kcal += food.kcal;
+            totals.carbs += food.carbs;
+            totals.protein += food.protein;
+            totals.fat += food.fat;
         }
 
         // Construir el resumen
