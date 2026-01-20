@@ -174,12 +174,13 @@
         <div id="settingsModal" class="modal hidden">
             <div class="modal-content glass">
                 <div class="modal-header">
-                    <h3>⚙️ Mis Objetivos</h3>
+                    <h3>⚙️ Configuración</h3>
                     <button id="closeSettingsBtn" class="close-btn">&times;</button>
                 </div>
                 <div class="settings-form">
+                    <h4 style="margin-bottom:10px;color:var(--text-dim)">Objetivos diarios</h4>
                     <div class="form-group">
-                        <label for="inputGoalCalories">Calorías diarias (kcal)</label>
+                        <label for="inputGoalCalories">Calorías (kcal)</label>
                         <input type="number" id="inputGoalCalories" value="2000" min="1000" max="5000">
                     </div>
                     <div class="form-group">
@@ -194,7 +195,15 @@
                         <label for="inputGoalFat">Grasas (g)</label>
                         <input type="number" id="inputGoalFat" value="65" min="0" max="200">
                     </div>
-                    <button id="saveSettingsBtn" class="primary-btn">Guardar Objetivos</button>
+
+                    <h4 style="margin:20px 0 10px;color:var(--text-dim)">API Key (Groq)</h4>
+                    <div class="form-group">
+                        <label for="inputApiKey">Tu API Key privada</label>
+                        <input type="password" id="inputApiKey" placeholder="gsk_xxxxx...">
+                        <small style="color:var(--text-dim);font-size:0.75rem">Se guarda solo en tu dispositivo</small>
+                    </div>
+
+                    <button id="saveSettingsBtn" class="primary-btn">Guardar</button>
                 </div>
             </div>
         </div>

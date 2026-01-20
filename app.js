@@ -1,5 +1,8 @@
 // Groq API (llamada directa desde navegador)
-const GROQ_API_KEY = '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';
+// La API key se guarda en localStorage para mantenerla privada
+function getApiKey() {
+    return localStorage.getItem('groqApiKey') || '';
+}
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 // OpenFoodFacts API - Base de datos mundial de alimentos (gratuita)
@@ -179,6 +182,7 @@ const inputGoalCalories = document.getElementById('inputGoalCalories');
 const inputGoalCarbs = document.getElementById('inputGoalCarbs');
 const inputGoalProtein = document.getElementById('inputGoalProtein');
 const inputGoalFat = document.getElementById('inputGoalFat');
+const inputApiKey = document.getElementById('inputApiKey');
 
 // Calendar
 const calendarBtn = document.getElementById('calendarBtn');
@@ -214,6 +218,12 @@ function updateGoalsDisplay() {
     inputGoalCarbs.value = state.goals.carbs;
     inputGoalProtein.value = state.goals.protein;
     inputGoalFat.value = state.goals.fat;
+
+    // Mostrar API key guardada (oculta)
+    const savedKey = getApiKey();
+    if (savedKey) {
+        inputApiKey.value = savedKey;
+    }
 }
 
 
@@ -320,10 +330,16 @@ function saveSettings() {
         fat: parseInt(inputGoalFat.value) || 65
     };
     localStorage.setItem('goals', JSON.stringify(state.goals));
+
+    // Guardar API key
+    const apiKey = inputApiKey.value.trim();
+    if (apiKey) {
+        localStorage.setItem('groqApiKey', apiKey);
+    }
+
     updateGoalsDisplay();
     updateUI();
     settingsModal.classList.add('hidden');
-    // addLog('Objetivos guardados', 'info');
 }
 
 // Funciones del Calendario
@@ -418,6 +434,12 @@ async function processSmartInput() {
     const rawText = smartInput.value.trim();
     if (!rawText) return;
 
+    // Verificar que hay API key configurada
+    if (!getApiKey()) {
+        alert('Necesitas configurar tu API Key de Groq.\n\nVe a Configuración (⚙️) y pega tu API key.\n\nPuedes obtenerla gratis en: console.groq.com/keys');
+        return;
+    }
+
     // Deshabilitar botón mientras procesa
     smartBtn.textContent = 'Analizando...';
     smartBtn.disabled = true;
@@ -428,7 +450,7 @@ async function processSmartInput() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${GROQ_API_KEY}`
+                'Authorization': `Bearer ${getApiKey()}`
             },
             body: JSON.stringify({
                 model: 'llama-3.3-70b-versatile',
@@ -488,7 +510,7 @@ Responde SOLO con este JSON (sin texto adicional):
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${GROQ_API_KEY}`
+                'Authorization': `Bearer ${getApiKey()}`
             },
             body: JSON.stringify({
                 model: 'llama-3.3-70b-versatile',
