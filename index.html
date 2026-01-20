@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CalorieTrack - Seguimiento Nutricional Premium</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body class="dark-theme">
+    <div class="app-container">
+        <header>
+            <div class="logo">Calorie<span>Track</span></div>
+            <div class="header-actions">
+                <button id="calendarBtn" class="icon-btn" title="Calendario">📅</button>
+                <button id="settingsBtn" class="icon-btn" title="Configuración">⚙️</button>
+            </div>
+        </header>
+
+        <!-- Date Navigation -->
+        <div class="date-nav">
+            <button id="prevDayBtn" class="nav-btn">◀</button>
+            <div class="date-display" id="currentDate">Lunes, 12 Ene</div>
+            <button id="nextDayBtn" class="nav-btn">▶</button>
+        </div>
+
+        <main>
+            <!-- Today's Summary Card -->
+            <section class="summary-card glass">
+                <div class="summary-header">
+                    <h2>Resumen de Hoy</h2>
+                    <span class="goal-percent" id="goalPercent">0% Objetivo</span>
+                </div>
+                <div class="progress-ring-container">
+                    <div class="calories-main">
+                        <span id="currentCalories">0</span>
+                        <small>/ <span id="goalCalories">2000</span> kcal</small>
+                    </div>
+                </div>
+                <div class="macros-grid">
+                    <div class="macro-item">
+                        <span>Carbohidratos</span>
+                        <div class="macro-bar">
+                            <div class="fill carbs" style="width: 0%"></div>
+                        </div>
+                        <span class="macro-value"><span id="carbsValue">0</span>/<span id="goalCarbs">250</span>g</span>
+                    </div>
+                    <div class="macro-item">
+                        <span>Proteína</span>
+                        <div class="macro-bar">
+                            <div class="fill protein" style="width: 0%"></div>
+                        </div>
+                        <span class="macro-value"><span id="proteinValue">0</span>/<span id="goalProtein">100</span>g</span>
+                    </div>
+                    <div class="macro-item">
+                        <span>Grasas</span>
+                        <div class="macro-bar">
+                            <div class="fill fat" style="width: 0%"></div>
+                        </div>
+                        <span class="macro-value"><span id="fatValue">0</span>/<span id="goalFat">65</span>g</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Meal Categories -->
+            <section class="meals-section">
+                <!-- Desayuno -->
+                <div class="meal-category" data-category="breakfast">
+                    <div class="meal-header">
+                        <div class="meal-title">
+                            <span class="meal-icon">🌅</span>
+                            <h3>Desayuno</h3>
+                        </div>
+                        <div class="meal-stats">
+                            <span class="meal-kcal" id="breakfast-kcal">0 kcal</span>
+                            <button class="add-meal-btn" onclick="openAddFood('breakfast')">+</button>
+                        </div>
+                    </div>
+                    <div class="food-list" id="breakfast-list"></div>
+                </div>
+
+                <!-- Comida -->
+                <div class="meal-category" data-category="lunch">
+                    <div class="meal-header">
+                        <div class="meal-title">
+                            <span class="meal-icon">☀️</span>
+                            <h3>Comida</h3>
+                        </div>
+                        <div class="meal-stats">
+                            <span class="meal-kcal" id="lunch-kcal">0 kcal</span>
+                            <button class="add-meal-btn" onclick="openAddFood('lunch')">+</button>
+                        </div>
+                    </div>
+                    <div class="food-list" id="lunch-list"></div>
+                </div>
+
+                <!-- Cena -->
+                <div class="meal-category" data-category="dinner">
+                    <div class="meal-header">
+                        <div class="meal-title">
+                            <span class="meal-icon">🌙</span>
+                            <h3>Cena</h3>
+                        </div>
+                        <div class="meal-stats">
+                            <span class="meal-kcal" id="dinner-kcal">0 kcal</span>
+                            <button class="add-meal-btn" onclick="openAddFood('dinner')">+</button>
+                        </div>
+                    </div>
+                    <div class="food-list" id="dinner-list"></div>
+                </div>
+
+                <!-- Otros -->
+                <div class="meal-category" data-category="other">
+                    <div class="meal-header">
+                        <div class="meal-title">
+                            <span class="meal-icon">🍿</span>
+                            <h3>Otros / Snacks</h3>
+                        </div>
+                        <div class="meal-stats">
+                            <span class="meal-kcal" id="other-kcal">0 kcal</span>
+                            <button class="add-meal-btn" onclick="openAddFood('other')">+</button>
+                        </div>
+                    </div>
+                    <div class="food-list" id="other-list"></div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Search Modal -->
+        <div id="searchModal" class="modal hidden">
+            <div class="modal-content glass">
+                <div class="modal-header">
+                    <h3>Buscar</h3>
+                    <button id="closeSearchBtn" class="close-btn">&times;</button>
+                </div>
+
+                <!-- Selector de categoría -->
+                <div class="category-selector">
+                    <span>Añadir a:</span>
+                    <select id="mealCategorySelect">
+                        <option value="breakfast">🌅 Desayuno</option>
+                        <option value="lunch">☀️ Comida</option>
+                        <option value="dinner">🌙 Cena</option>
+                        <option value="other">🍿 Otros</option>
+                    </select>
+                </div>
+
+                <div id="smartView">
+                    <p class="smart-info">Escribe lo que has comido y estimaremos las calorías por ti.</p>
+                    <div class="search-box">
+                        <textarea id="smartInput"
+                            placeholder="Ej: Dos tostadas con aceite y un café con leche..."></textarea>
+                    </div>
+                    <button id="smartBtn" class="primary-btn">Estimar y Añadir</button>
+                    <div id="smartPreview" class="smart-preview hidden">
+                        <!-- Preview of what was understood -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settingsModal" class="modal hidden">
+            <div class="modal-content glass">
+                <div class="modal-header">
+                    <h3>⚙️ Mis Objetivos</h3>
+                    <button id="closeSettingsBtn" class="close-btn">&times;</button>
+                </div>
+                <div class="settings-form">
+                    <div class="form-group">
+                        <label for="inputGoalCalories">Calorías diarias (kcal)</label>
+                        <input type="number" id="inputGoalCalories" value="2000" min="1000" max="5000">
+                    </div>
+                    <div class="form-group">
+                        <label for="inputGoalCarbs">Carbohidratos (g)</label>
+                        <input type="number" id="inputGoalCarbs" value="250" min="0" max="500">
+                    </div>
+                    <div class="form-group">
+                        <label for="inputGoalProtein">Proteína (g)</label>
+                        <input type="number" id="inputGoalProtein" value="100" min="0" max="300">
+                    </div>
+                    <div class="form-group">
+                        <label for="inputGoalFat">Grasas (g)</label>
+                        <input type="number" id="inputGoalFat" value="65" min="0" max="200">
+                    </div>
+                    <button id="saveSettingsBtn" class="primary-btn">Guardar Objetivos</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Calendar Modal -->
+        <div id="calendarModal" class="modal hidden">
+            <div class="modal-content glass calendar-modal">
+                <div class="modal-header">
+                    <h3>📅 Historial</h3>
+                    <button id="closeCalendarBtn" class="close-btn">&times;</button>
+                </div>
+                <div class="calendar-nav">
+                    <button id="prevMonthBtn" class="nav-btn">◀</button>
+                    <span id="calendarMonth">Enero 2025</span>
+                    <button id="nextMonthBtn" class="nav-btn">▶</button>
+                </div>
+                <div class="calendar-grid" id="calendarGrid">
+                    <!-- Calendar days will be injected here -->
+                </div>
+                <div class="calendar-summary" id="calendarSummary">
+                    <p>Selecciona un día para ver el detalle</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <script src="app.js"></script>
+</body>
+
+</html>
