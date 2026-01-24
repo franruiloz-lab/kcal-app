@@ -157,12 +157,31 @@
                 </div>
 
                 <div id="smartView">
-                    <p class="smart-info">Escribe lo que has comido y estimaremos las calorías por ti.</p>
+                    <p class="smart-info">Escribe lo que has comido o escanea una etiqueta nutricional.</p>
                     <div class="search-box">
                         <textarea id="smartInput"
                             placeholder="Ej: Dos tostadas con aceite y un café con leche..."></textarea>
                     </div>
                     <button id="smartBtn" class="primary-btn">Estimar y Añadir</button>
+
+                    <div class="divider" style="text-align:center;margin:15px 0;color:var(--text-dim)">— o —</div>
+
+                    <div id="scanSection">
+                        <input type="file" id="labelImage" accept="image/*" capture="environment" style="display:none">
+                        <button id="scanBtn" class="secondary-btn" style="width:100%;padding:12px;background:linear-gradient(135deg,#f093fb,#f5576c);border:none;border-radius:8px;color:white;font-weight:600;cursor:pointer">
+                            📷 Escanear Etiqueta Nutricional
+                        </button>
+                        <div id="scanPreview" class="hidden" style="margin-top:15px">
+                            <img id="scannedImage" style="max-width:100%;border-radius:8px;margin-bottom:10px">
+                            <div id="scannedData" style="background:var(--card-bg);padding:10px;border-radius:8px;margin-bottom:10px"></div>
+                            <div class="form-group" style="margin-bottom:10px">
+                                <label for="gramsInput">¿Cuántos gramos vas a comer?</label>
+                                <input type="number" id="gramsInput" placeholder="Ej: 50" min="1" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);color:var(--text)">
+                            </div>
+                            <button id="addScannedBtn" class="primary-btn">Calcular y Añadir</button>
+                        </div>
+                    </div>
+
                     <div id="smartPreview" class="smart-preview hidden">
                         <!-- Preview of what was understood -->
                     </div>

@@ -169,6 +169,18 @@ const smartInput = document.getElementById('smartInput');
 const smartBtn = document.getElementById('smartBtn');
 const smartPreview = document.getElementById('smartPreview');
 
+// Elementos del escáner de etiquetas
+const scanBtn = document.getElementById('scanBtn');
+const labelImage = document.getElementById('labelImage');
+const scanPreview = document.getElementById('scanPreview');
+const scannedImage = document.getElementById('scannedImage');
+const scannedData = document.getElementById('scannedData');
+const gramsInput = document.getElementById('gramsInput');
+const addScannedBtn = document.getElementById('addScannedBtn');
+
+// Variable para guardar los datos escaneados temporalmente
+let scannedNutrients = null;
+
 // Navegación de fecha
 const prevDayBtn = document.getElementById('prevDayBtn');
 const nextDayBtn = document.getElementById('nextDayBtn');
@@ -294,11 +306,19 @@ window.openAddFood = function(category) {
 
 function setupEventListeners() {
     // Modal de búsqueda
-    closeSearchBtn.onclick = () => searchModal.classList.add('hidden');
+    closeSearchBtn.onclick = () => {
+        searchModal.classList.add('hidden');
+        resetScanPreview();
+    };
     mealCategorySelect.onchange = (e) => { currentMealCategory = e.target.value; };
 
     // Botón de búsqueda inteligente (IA)
     smartBtn.onclick = processSmartInput;
+
+    // Escáner de etiquetas
+    scanBtn.onclick = () => labelImage.click();
+    labelImage.onchange = processLabelImage;
+    addScannedBtn.onclick = addScannedFood;
 
     // Navegación de fecha
     prevDayBtn.onclick = () => changeDate(-1);
@@ -608,6 +628,169 @@ Responde SOLO con este JSON (sin texto adicional):
         smartBtn.textContent = 'Estimar y Añadir';
         smartBtn.disabled = false;
     }
+}
+
+// Resetear vista del escáner
+function resetScanPreview() {
+    scanPreview.classList.add('hidden');
+    scannedImage.src = '';
+    scannedData.innerHTML = '';
+    gramsInput.value = '';
+    scannedNutrients = null;
+    labelImage.value = '';
+}
+
+// Procesar imagen de etiqueta nutricional
+async function processLabelImage(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Verificar API key
+    if (!getApiKey()) {
+        alert('Necesitas configurar tu API Key de Groq.\n\nVe a Configuración (⚙️) y pega tu API key.');
+        return;
+    }
+
+    // Mostrar imagen capturada
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const base64Image = e.target.result;
+        scannedImage.src = base64Image;
+        scanPreview.classList.remove('hidden');
+        scannedData.innerHTML = '<p style="text-align:center">Analizando etiqueta...</p>';
+
+        try {
+            // Enviar imagen al modelo de visión de Groq
+            const response = await fetch(GROQ_API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${getApiKey()}`
+                },
+                body: JSON.stringify({
+                    model: 'llama-3.2-90b-vision-preview',
+                    messages: [{
+                        role: 'user',
+                        content: [
+                            {
+                                type: 'text',
+                                text: `Analiza esta etiqueta nutricional y extrae los valores por 100g (o por porción si no hay por 100g).
+
+Necesito EXACTAMENTE estos datos:
+- Nombre del producto (si es visible)
+- Calorías (kcal)
+- Carbohidratos (g)
+- Proteínas (g)
+- Grasas (g)
+
+Responde SOLO con este JSON (sin texto adicional):
+{"product": "nombre del producto", "per": "100g o porción", "kcal": número, "carbs": número, "protein": número, "fat": número}`
+                            },
+                            {
+                                type: 'image_url',
+                                image_url: {
+                                    url: base64Image
+                                }
+                            }
+                        ]
+                    }],
+                    temperature: 0.1,
+                    max_tokens: 500
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error?.message || `Error de API: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const content = data.choices[0].message.content;
+
+            // Parsear respuesta
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) {
+                throw new Error('No se pudo leer la etiqueta');
+            }
+
+            scannedNutrients = JSON.parse(jsonMatch[0]);
+
+            // Mostrar datos extraídos
+            scannedData.innerHTML = `
+                <h4 style="margin:0 0 10px;color:var(--primary)">${scannedNutrients.product || 'Producto'}</h4>
+                <p style="margin:5px 0;font-size:0.85rem;color:var(--text-dim)">Valores por ${scannedNutrients.per || '100g'}:</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:0.9rem">
+                    <span>Calorías:</span><strong>${scannedNutrients.kcal} kcal</strong>
+                    <span>Carbos:</span><strong>${scannedNutrients.carbs}g</strong>
+                    <span>Proteína:</span><strong>${scannedNutrients.protein}g</strong>
+                    <span>Grasas:</span><strong>${scannedNutrients.fat}g</strong>
+                </div>
+            `;
+            gramsInput.focus();
+
+        } catch (error) {
+            console.error('Error procesando imagen:', error);
+            scannedData.innerHTML = `<p style="color:#f5576c">Error: ${error.message}</p><p style="font-size:0.8rem">Intenta con otra foto más clara de la etiqueta.</p>`;
+        }
+    };
+    reader.readAsDataURL(file);
+}
+
+// Añadir alimento escaneado
+function addScannedFood() {
+    if (!scannedNutrients) {
+        alert('Primero escanea una etiqueta');
+        return;
+    }
+
+    const grams = parseFloat(gramsInput.value);
+    if (!grams || grams <= 0) {
+        alert('Introduce los gramos que vas a comer');
+        gramsInput.focus();
+        return;
+    }
+
+    // Calcular según los gramos (los datos vienen por 100g normalmente)
+    const ratio = grams / 100;
+    const calculated = {
+        kcal: Math.round(scannedNutrients.kcal * ratio),
+        carbs: Math.round(scannedNutrients.carbs * ratio * 10) / 10,
+        protein: Math.round(scannedNutrients.protein * ratio * 10) / 10,
+        fat: Math.round(scannedNutrients.fat * ratio * 10) / 10
+    };
+
+    // Añadir a la categoría seleccionada
+    const dayData = getFoodsForDate(state.selectedDate);
+    if (!dayData[currentMealCategory]) {
+        dayData[currentMealCategory] = [];
+    }
+    dayData[currentMealCategory].push({
+        label: `${scannedNutrients.product || 'Producto escaneado'} (${grams}g)`,
+        calories: calculated.kcal,
+        carbs: calculated.carbs,
+        protein: calculated.protein,
+        fat: calculated.fat,
+        brand: 'Etiqueta escaneada',
+        quantity: grams,
+        id: Date.now()
+    });
+    saveFoodsForDate(state.selectedDate, dayData);
+
+    // Mostrar confirmación
+    smartPreview.innerHTML = `
+        <strong>Añadido:</strong> ${scannedNutrients.product || 'Producto'} (${grams}g)<br>
+        <strong>Total: ${calculated.kcal} kcal</strong><br>
+        <small>Carbs: ${calculated.carbs}g | Prot: ${calculated.protein}g | Grasa: ${calculated.fat}g</small>
+    `;
+    smartPreview.classList.remove('hidden');
+
+    updateUI();
+    resetScanPreview();
+
+    setTimeout(() => {
+        searchModal.classList.add('hidden');
+        smartPreview.classList.add('hidden');
+    }, 2500);
 }
 
 window.deleteFood = (category, index) => {
