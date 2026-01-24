@@ -177,9 +177,47 @@ const scannedImage = document.getElementById('scannedImage');
 const scannedData = document.getElementById('scannedData');
 const gramsInput = document.getElementById('gramsInput');
 const addScannedBtn = document.getElementById('addScannedBtn');
+const saveProductBtn = document.getElementById('saveProductBtn');
+
+// Elementos de productos guardados
+const savedProductsList = document.getElementById('savedProductsList');
+const savedProductForm = document.getElementById('savedProductForm');
+const savedProductInfo = document.getElementById('savedProductInfo');
+const savedGramsInput = document.getElementById('savedGramsInput');
+const addSavedBtn = document.getElementById('addSavedBtn');
 
 // Variable para guardar los datos escaneados temporalmente
 let scannedNutrients = null;
+let selectedSavedProduct = null;
+
+// Cargar productos guardados del localStorage
+function getSavedProducts() {
+    return JSON.parse(localStorage.getItem('savedProducts')) || [];
+}
+
+// Guardar productos en localStorage
+function saveSavedProducts(products) {
+    localStorage.setItem('savedProducts', JSON.stringify(products));
+}
+
+// Renderizar lista de productos guardados
+function renderSavedProducts() {
+    const products = getSavedProducts();
+    if (products.length === 0) {
+        savedProductsList.innerHTML = '<p style="color:var(--text-dim);font-size:0.85rem;text-align:center">No hay productos guardados</p>';
+        return;
+    }
+
+    savedProductsList.innerHTML = products.map((p, index) => `
+        <div class="saved-product-item" onclick="selectSavedProduct(${index})" style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;margin-bottom:5px;background:var(--card-bg);border-radius:8px;cursor:pointer;border:1px solid transparent;transition:border 0.2s">
+            <div style="flex:1">
+                <strong style="font-size:0.9rem">${p.product}</strong>
+                <small style="display:block;color:var(--text-dim)">${p.kcal} kcal/100g</small>
+            </div>
+            <button onclick="event.stopPropagation();deleteSavedProduct(${index})" style="background:none;border:none;color:#f5576c;cursor:pointer;padding:5px">✕</button>
+        </div>
+    `).join('');
+}
 
 // Navegación de fecha
 const prevDayBtn = document.getElementById('prevDayBtn');
@@ -319,6 +357,11 @@ function setupEventListeners() {
     scanBtn.onclick = () => labelImage.click();
     labelImage.onchange = processLabelImage;
     addScannedBtn.onclick = addScannedFood;
+    saveProductBtn.onclick = saveScannedProduct;
+
+    // Productos guardados
+    addSavedBtn.onclick = addSavedProduct;
+    renderSavedProducts();
 
     // Navegación de fecha
     prevDayBtn.onclick = () => changeDate(-1);
@@ -638,6 +681,10 @@ function resetScanPreview() {
     gramsInput.value = '';
     scannedNutrients = null;
     labelImage.value = '';
+    // También resetear productos guardados
+    savedProductForm.classList.add('hidden');
+    selectedSavedProduct = null;
+    savedGramsInput.value = '';
 }
 
 // Procesar imagen de etiqueta nutricional
@@ -786,6 +833,123 @@ function addScannedFood() {
 
     updateUI();
     resetScanPreview();
+
+    setTimeout(() => {
+        searchModal.classList.add('hidden');
+        smartPreview.classList.add('hidden');
+    }, 2500);
+}
+
+// Guardar producto escaneado para futuro uso
+function saveScannedProduct() {
+    if (!scannedNutrients) {
+        alert('Primero escanea una etiqueta');
+        return;
+    }
+
+    const products = getSavedProducts();
+
+    // Verificar si ya existe
+    const exists = products.some(p => p.product === scannedNutrients.product);
+    if (exists) {
+        alert('Este producto ya está guardado');
+        return;
+    }
+
+    products.push({
+        product: scannedNutrients.product || 'Producto',
+        kcal: scannedNutrients.kcal,
+        carbs: scannedNutrients.carbs,
+        protein: scannedNutrients.protein,
+        fat: scannedNutrients.fat,
+        per: scannedNutrients.per || '100g'
+    });
+
+    saveSavedProducts(products);
+    renderSavedProducts();
+    alert('Producto guardado');
+}
+
+// Seleccionar un producto guardado
+window.selectSavedProduct = function(index) {
+    const products = getSavedProducts();
+    selectedSavedProduct = products[index];
+
+    savedProductInfo.innerHTML = `
+        <strong>${selectedSavedProduct.product}</strong>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:0.85rem;margin-top:5px">
+            <span>Kcal:</span><span>${selectedSavedProduct.kcal}/100g</span>
+            <span>Carbos:</span><span>${selectedSavedProduct.carbs}g</span>
+            <span>Prot:</span><span>${selectedSavedProduct.protein}g</span>
+            <span>Grasa:</span><span>${selectedSavedProduct.fat}g</span>
+        </div>
+    `;
+    savedProductForm.classList.remove('hidden');
+    savedGramsInput.value = '';
+    savedGramsInput.focus();
+};
+
+// Eliminar producto guardado
+window.deleteSavedProduct = function(index) {
+    if (confirm('¿Eliminar este producto?')) {
+        const products = getSavedProducts();
+        products.splice(index, 1);
+        saveSavedProducts(products);
+        renderSavedProducts();
+        savedProductForm.classList.add('hidden');
+        selectedSavedProduct = null;
+    }
+};
+
+// Añadir producto guardado
+function addSavedProduct() {
+    if (!selectedSavedProduct) {
+        alert('Selecciona un producto de la lista');
+        return;
+    }
+
+    const grams = parseFloat(savedGramsInput.value);
+    if (!grams || grams <= 0) {
+        alert('Introduce los gramos');
+        savedGramsInput.focus();
+        return;
+    }
+
+    const ratio = grams / 100;
+    const calculated = {
+        kcal: Math.round(selectedSavedProduct.kcal * ratio),
+        carbs: Math.round(selectedSavedProduct.carbs * ratio * 10) / 10,
+        protein: Math.round(selectedSavedProduct.protein * ratio * 10) / 10,
+        fat: Math.round(selectedSavedProduct.fat * ratio * 10) / 10
+    };
+
+    const dayData = getFoodsForDate(state.selectedDate);
+    if (!dayData[currentMealCategory]) {
+        dayData[currentMealCategory] = [];
+    }
+    dayData[currentMealCategory].push({
+        label: `${selectedSavedProduct.product} (${grams}g)`,
+        calories: calculated.kcal,
+        carbs: calculated.carbs,
+        protein: calculated.protein,
+        fat: calculated.fat,
+        brand: 'Producto guardado',
+        quantity: grams,
+        id: Date.now()
+    });
+    saveFoodsForDate(state.selectedDate, dayData);
+
+    smartPreview.innerHTML = `
+        <strong>Añadido:</strong> ${selectedSavedProduct.product} (${grams}g)<br>
+        <strong>Total: ${calculated.kcal} kcal</strong><br>
+        <small>Carbs: ${calculated.carbs}g | Prot: ${calculated.protein}g | Grasa: ${calculated.fat}g</small>
+    `;
+    smartPreview.classList.remove('hidden');
+
+    updateUI();
+    savedProductForm.classList.add('hidden');
+    selectedSavedProduct = null;
+    savedGramsInput.value = '';
 
     setTimeout(() => {
         searchModal.classList.add('hidden');

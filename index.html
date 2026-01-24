@@ -166,10 +166,28 @@
 
                     <div class="divider" style="text-align:center;margin:15px 0;color:var(--text-dim)">— o —</div>
 
+                    <!-- Mis productos guardados -->
+                    <div id="savedProductsSection">
+                        <h4 style="margin:0 0 10px;font-size:0.9rem;color:var(--text-dim)">Mis productos guardados</h4>
+                        <div id="savedProductsList" style="max-height:150px;overflow-y:auto;margin-bottom:10px">
+                            <!-- Lista de productos guardados -->
+                        </div>
+                        <div id="savedProductForm" class="hidden" style="background:var(--card-bg);padding:10px;border-radius:8px;margin-bottom:10px">
+                            <div id="savedProductInfo"></div>
+                            <div class="form-group" style="margin:10px 0">
+                                <label for="savedGramsInput">¿Cuántos gramos?</label>
+                                <input type="number" id="savedGramsInput" placeholder="Ej: 50" min="1" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);color:var(--text)">
+                            </div>
+                            <button id="addSavedBtn" class="primary-btn" style="width:100%">Añadir</button>
+                        </div>
+                    </div>
+
+                    <div class="divider" style="text-align:center;margin:15px 0;color:var(--text-dim)">— o —</div>
+
                     <div id="scanSection">
                         <input type="file" id="labelImage" accept="image/*" capture="environment" style="display:none">
                         <button id="scanBtn" class="secondary-btn" style="width:100%;padding:12px;background:linear-gradient(135deg,#f093fb,#f5576c);border:none;border-radius:8px;color:white;font-weight:600;cursor:pointer">
-                            📷 Escanear Etiqueta Nutricional
+                            📷 Escanear Nueva Etiqueta
                         </button>
                         <div id="scanPreview" class="hidden" style="margin-top:15px">
                             <img id="scannedImage" style="max-width:100%;border-radius:8px;margin-bottom:10px">
@@ -178,7 +196,10 @@
                                 <label for="gramsInput">¿Cuántos gramos vas a comer?</label>
                                 <input type="number" id="gramsInput" placeholder="Ej: 50" min="1" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);color:var(--text)">
                             </div>
-                            <button id="addScannedBtn" class="primary-btn">Calcular y Añadir</button>
+                            <div style="display:flex;gap:10px">
+                                <button id="addScannedBtn" class="primary-btn" style="flex:1">Añadir</button>
+                                <button id="saveProductBtn" class="secondary-btn" style="flex:1;background:#4CAF50;border:none;border-radius:8px;color:white;cursor:pointer">Guardar producto</button>
+                            </div>
                         </div>
                     </div>
 
